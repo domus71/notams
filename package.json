@@ -1,0 +1,17 @@
+{
+  "name": "notams",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "date-diff": "^0.2.2",
+    "mongodb": "^3.5.7",
+    "node-fetch": "^2.6.0"
+  }
+}
