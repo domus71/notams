@@ -1,68 +1,83 @@
+const config = require('./config.json');
 const fetch = require('node-fetch');
 const fs = require('fs');
 const MongoClient = require('mongodb').MongoClient;
 const assert = require('assert');
 const DateDiff = require('date-diff');
- 
+const express = require('express');
+const app = express();
+
 // Connection URL
-const url = 'mongodb://localhost:27017';
+const url = config.mongdb_url;
  
 // Database Name
 const dbName = 'notams';
 
-let diskdata = fs.readFileSync(__dirname + '\\notam_icao.json');
-let notams = JSON.parse(diskdata);
-var stats = fs.statSync(__dirname + '\\notam_icao.json');
-var mtime = stats.mtime;
-var curdate = new Date();
-var datediff = new DateDiff(curdate,mtime);
-console.log(datediff.hours());
+let diskdata;
+let notams;
+let airport_icao;
 
-if(datediff.hours() >= 8){
-    insertIntoMongDB();
+app.get('/icao/:id',async function(req,res,next){
+    let stats = fs.statSync(__dirname + '\\notam_icao.json',);
+    let mtime = stats.mtime;
+    let curdate = new Date();
+    let datediff = new DateDiff(curdate,mtime);
+    airport_icao = req.params.id;
+    console.log(datediff.seconds() +' out of 28800');
+    if(datediff.hours() >= 8){
+        let result = await getNOTAMsFromICAO();
+        res.send(result);
+    }else{
+        let result = await readDatabyAirport(airport_icao);
+        res.send(result);
+    }
+});
+
+app.listen(config.port, console.log.bind(console, 'Listening on port '+config.port));
+
+
+async function getNOTAMsFromICAO(){
+    let res = await fetch(config.iaco_endpoint, { method: "Get" });
+    let json = await res.json();
+    fs.writeFileSync(__dirname+'\\notam_icao.json',JSON.stringify(json));
+    console.log('File saved!');
+    notams = json;
+    return await insertIntoMongDB();
 }
-
-function getNOTAMsFromICAO(){
-    let url = "https://www.reddit.com/r/popular.json";
-
-    let settings = { method: "Get" };
     
-    fetch(url, settings)
-        .then(res => res.json())
-        .then((json) => {
-            fs.writeFileSync(__dirname+'test.json',json.to)
-        });    
-}
-    
-function insertIntoMongDB(){
+async function insertIntoMongDB(){
     // Use connect method to connect to the server
-    MongoClient.connect(url, { useUnifiedTopology: true }, function(err, client) {
-        assert.equal(null, err);
-        console.log("Connected successfully to server");
+    let client, db;
+    try{
+        client = await MongoClient.connect(url, { useUnifiedTopology: true });
+        db = client.db(dbName);
         
-        const db = client.db(dbName);
-        
-        const insertNotams = async function(notams){
-            const collection = db.collection('storednotams');
-            await collection.drop();
-            await collection.insertMany(notams);
-            await client.close();
-            console.log('Done');
-        }
-        console.log(notams.length);
-        insertNotams(notams);
-            
-    });
+        const collection = db.collection('storednotams');
+        await collection.drop();
+        await collection.insertMany(notams);
+        await client.close();
+        console.log('Insertion done!');
+        return await readDatabyAirport(airport_icao);
+    }catch(err){
+        assert(null,err);
+    }finally{
+        //client.close();
+    }
 }
 
-/*
-let url = "https://www.reddit.com/r/popular.json";
+async function readDatabyAirport(icaoCode){
+    let client, db;
+    try {
+        client = await MongoClient.connect(url, { useUnifiedTopology: true });
+        db = client.db(dbName);
+        let collection = db.collection('storednotams');
 
-let settings = { method: "Get" };
+        let json_result = await collection.find({'location': icaoCode}).toArray();
+        return json_result;
+    } catch(err) {
+        assert.equal(null, err);
+    } finally {
+        client.close();
+    }
+}
 
-fetch(url, settings)
-    .then(res => res.json())
-    .then((json) => {
-        console.log(json)
-    });
-*/
