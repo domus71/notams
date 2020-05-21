@@ -24,7 +24,7 @@ app.get('/icao/:id',async function(req,res,next){
     let datediff = new DateDiff(curdate,mtime);
     airport_icao = req.params.id;
     console.log(datediff.seconds() +' out of 28800');
-    if(datediff.hours() >= 8){
+    if(datediff.hours() >= config.update_every_hours){
         let result = await getNOTAMsFromICAO();
         res.send(result);
     }else{
